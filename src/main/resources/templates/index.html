@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8" />
+<title>ECサイト</title>
+<link href="/css/style.css" th:href="@{/css/style.css}" rel="stylesheet" />
+
+<!-- jqueryを使用するためにCDN（Content Delivery Network）から読み込む -->
+<script src="http://code.jquery.com/jquery-3.4.1.min.js"></script>
+
+<!-- 関数の処理部分を分けたcommon.jsを読み込む。jqueryを読み込む文よりあとに記述しなければならないことに注意 -->
+<script src="/js/common.js" th:src="@{/js/common.js}"></script>
+
+<!-- 履歴はモーダルダイアログで表示するためjquery-uiというjqueryライブラリを使用する -->
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css" />
+
+<!-- 全てをhtmlに記述すると可読性が損なわれるため、イベントリスナはindex.htmlに、実際処理する関数はcommon.jsにそれぞれ追加する -->
+<script>
+// 商品一覧表内の「カートに入れる」機能を実装する
+// 今回のカート機能では、カートに入れた段階でDBにデータを登録しない仕様であるため、フロントエンド（HTML/Javascript）で完結することが可能
+// 追加されたカート情報を、一覧形式でメモリ上に保持しておくための変数を定義する
+let cartList = [];
+
+// $(() => {});はEcmascript2015以降のアロー関数（ラムダ式）での記述。意味は$(function() {});と同様で、ページオンロード時のイベントリスナーである
+// イベントとは「ページが表示された」、「ボタンをクリックした」などの動作のことを指す
+// JavaScriptには予め様々なイベントが定義されており、それらのイベントが発生した際に動作するように対応付けておいた関数のことを「イベントリスナー」と呼ぶ
+$(() => {
+	// 「loginForm」のidを持つ要素で、submitイベントが発生した際にloginを呼び出すようリスナー登録している
+	$('#loginForm').on('submit', login);
+	// 「cartBtn」のclassを持つ要素で、clickイベントが発生した際にaddCartを呼び出すようリスナー登録している
+	$('.cartBtn').on('click', addCart)
+	// 「buyBtn」のidを持つ要素で、clickイベントが発生した際にbuyを呼び出すようリスナー登録している
+	$('#buyBtn').on('click', buy);
+	// 「historyBtn」のidを持つ要素で、clickイベントが発生した際にshowHistoryを呼び出すようリスナー登録している
+	$("#historyBtn").on('click', showHistory);
+	
+	// jquery-uiのモーダルダイアログを設定する
+	$("#history").dialog({
+		autoOpen: false,
+		width: 550,
+		modal: true,
+		buttons: [
+			{
+			text: 'OK',
+			click: function() {
+				$(this).dialog("close");
+				}
+			},
+		]
+	})
+});
+</script>
+
+</head>
+<body>
+
+	<header>
+		<h1>My EC Site</h1>
+		<div>
+			<form name="loginForm" id="loginForm" method="post" action="#">
+				User name:<input type="text" name="userName" /> 
+				Password :<input type="password" name="password" />
+				<button type="submit">Login</button>
+			</form>
+			<br /> 
+			<span id="welcome"> -- ようこそ！ ゲスト さん</span> 
+			<input type="hidden" id="hiddenUserId" value="0" />
+		</div>
+	</header>
+
+	<!-- HTMLにおけるテーブルの記述方法 -->
+	<!-- <table></table>で表を作成する -->
+	<!-- <tr></tr>で表の行（横一列）をまとめる -->
+	<!-- <td></td>でセルの要素であり、表の値を意味する -->
+	<!-- <th></th>でセルの要素であり、表の見出しを意味する -->
+	<!-- <thead></thead>でテーブルのヘッダ部分を意味する -->
+	<!-- <tbody></tbody>でテーブルのボディ部分を意味する -->
+	<table>
+		<thead>
+			<tr>
+				<th>ID</th>
+				<th>商品名</th>
+				<th>価格</th>
+				<th>注文数</th>
+				<th>カート</th>
+			</tr>
+		</thead>
+		<tbody>
+			<!-- この部分はThymeleafを利用したループ処理を行っている -->
+			<!-- IndexControllerのindexメソッドでModelにgoodsというキーでaddしたDB内のgoodsテーブルの全レコードを、ここで全て表示するようループ処理している -->
+			<!-- th:each="変数 : ${コレクション}で、コレクションから値を一つずつ取り出し変数に代入するという処理を行う -->
+			<!-- ここではitemという変数に値を挿入していくが、続く変数名にはGoodsエンティティで定義したDBカラムと対応する属性の変数名が入る -->
+			<!-- 例えば、goodsテーブルのgoods_nameというカラムはGoodsエンティティではgoodsNameとしたため、item.goodsNameと記述する -->
+			<tr th:each="item: ${goods}">
+				<td th:text="${item.id}" />
+				<td th:text="${item.goodsName}" />
+				<td th:text="${item.price}" />
+				<td><input type="number" class="count" value="0" /></td>
+				<td><button class="cartBtn">カートに入れる</button></td>
+			</tr>
+		</tbody>
+	</table>
+
+	<fieldset>
+		<legend>カート</legend>
+		<table id="cart">
+			<thead>
+				<tr>
+					<th>ID</th>
+					<th>商品名</th>
+					<th>価格</th>
+					<th>注文数</th>
+					<th>カート</th>
+				</tr>
+			</thead>
+			<!-- tbody内にはajaxを使って、RESTと呼ばれる手法で動的にテーブルを作成する -->
+			<!-- 近年のSPA（Single Page Application）の作成に使われる手法のため重要性が増している -->
+			<tbody>
+
+			</tbody>
+		</table>
+		<button id="buyBtn">購入</button>
+		<button id="historyBtn">履歴</button>
+	</fieldset>
+
+	<!-- このdivタグ内の要素は、初期表示時に非表示となるようスタイル定義をしている -->
+	<!-- 最終的に「履歴」ボタン押下時に表示する仕様として後に作成する -->
+	<div id="history" title="購入履歴" style="display: none">
+		<table id="historyTable">
+			<thead>
+				<tr>
+					<th>商品名</th>
+					<th>注文数</th>
+					<th>購入日時</th>
+				</tr>
+			</thead>
+			<tbody>
+			
+			</tbody>
+		</table>
+	</div>
+
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+<meta charset="UTF-8">
+<link href="/css/style.css" th:href="@{/css/style.css}" rel="stylesheet" />
+<script src="http://code.jquery.com/jquery-3.4.1.min.js"></script>
+<script>
+$(() => {
+	$('.deleteBtn').on('click', (event) => {
+		event.preventDefault();
+		let tdList = $(event.target).parent().parent().find('td');
+		
+		let id = $(tdList[0]).text();
+		let jsonString = {
+			'id': id,
+			'goodsName': $(tdList[1]).text(),
+			'price': ''
+		};
+		$.ajax({
+			type: 'POST',
+			url: '/ecsite/admin/api/deleteGoods',
+			data: JSON.stringify(jsonString),
+			contentType: 'application/json',
+			scriptCharset: 'urf-8'
+		})
+		.then((result) => {
+				console.log(result);
+				alert(`商品[ ${jsonString.goodsName} ]を削除しました。`);
+				$(tdList).parent().remove();
+			}, () => {
+				console.erro('Error: ajax connection failed.');
+			}
+				
+		);
+	});	
+});
+</script>
+<title>ECサイト</title>
+</head>
+
+<body>
+
+<header>
+	<h1>My EC Site</h1>
+</header>
+
+<table id="adminTable">
+	<thead>
+		<tr>
+			<!-- 行 -->
+			<th>ID</th><th>商品名</th><th>価格</th><th>削除</th>
+		</tr>
+	</thead>
+	<tbody>
+		<!-- th:eachとは繰り返しを意味し、th:each="変数:${コレクション}"で記述できる -->
+		<!-- ${コレクション}の値を一つずつ取り出し変数に代入し、以降の処理の中で変数.フィールドの形で値へアクセスできる。Javaでいう拡張for文 -->
+		<!-- 今回の場合はgoodsというコレクションの中から値を一つずつitemという変数に代入し、Goods.javaで定義したフィールド名に対応した値をそれぞれのタグ内で表示するという処理を繰り返す -->
+		<tr th:each="item:${goods}">
+			<td th:text="${item.id}" />
+			<td th:text="${item.goodsName}" />
+			<td th:text="${item.price}" />
+			<td> <button type="submit" class="deleteBtn">削除</button> </td>
+		</tr>
+	</tbody>
+</table>
+
+<!-- Thymeleafにおいて@{}で囲まれた文はリンクを意味する。絶対URLも相対URLも可 -->
+<form name="goodsForm" id="adminPage" method="post" action="/ecsite/admin/goodsMst" th:action="@{/ecsite/admin/goodsMst}">
+	<!-- th:if="条件"で、条件式がTrueの場合にこのタグ及び内部にあるタグを表示するという機能を実装できる -->
+	<!-- つまりここでは、userNameに値が入っていればbuttonタグを表示するという意味になる -->
+	<button type="submit" th:if="${userName != null}">新規追加</button>
+	<input type="hidden" name="userName" th:value="${userName}"/>
+	<input type="hidden" name="password" th:value="${password}"/>
+</form>
+
+</body>
+</html>
